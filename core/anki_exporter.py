@@ -108,6 +108,9 @@ class AnkiExporter:
     def add_cards(self, cards: List[AnkiCard]) -> None:
         """添加卡片到牌组"""
         for card in cards:
+            # Anki tags不能包含空格，替换为下划线
+            safe_tags = [t.replace(" ", "_").replace("\t", "_") for t in card.tags if t]
+            
             # 处理填空题
             if card.card_type == "cloze":
                 note = genanki.Note(
@@ -118,7 +121,7 @@ class AnkiExporter:
                         ", ".join(card.tags),
                         card.source
                     ],
-                    tags=card.tags
+                    tags=safe_tags
                 )
             else:
                 # 问答卡和概念卡
@@ -130,7 +133,7 @@ class AnkiExporter:
                         ", ".join(card.tags),
                         card.source
                     ],
-                    tags=card.tags
+                    tags=safe_tags
                 )
             
             self.deck.add_note(note)

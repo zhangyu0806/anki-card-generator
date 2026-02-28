@@ -37,120 +37,101 @@ class QACardGenerator(CardGenerator):
     def generate(self, text: str, context: str, metadata: Dict) -> List[AnkiCard]:
         """从知识点生成问答卡"""
         cards = []
+        tags = metadata.get("tags", [])
+        source = metadata.get("source", "")
         
-        # 模式1: "定义：..." → "什么是X？"
-        if "定义：" in text or"是指" in text:
-            question = self._extract_concept(text)
-            if question:
+        # 模式1: "定义：X是Y" → "X的定义是什么？"
+        def_match = re.match(r'定义[：:]\s*(.+?)(?:是指|是)(.+)', text)
+        if def_match:
+            concept = def_match.group(1).strip()
+            if 2 <= len(concept) <= 20:
                 cards.append(AnkiCard(
-                    front=f"什么是{question}？",
+                    front=f"{concept}的定义是什么？",
                     back=text,
-                    card_type="qa",
-                    tags=metadata.get("tags", []),
-                    source=metadata.get("source", "")
+                    card_type="qa", tags=tags, source=source
                 ))
+                return cards
         
-        # 模式2: "X包括..." → "X包括哪些？"
-        include_match = re.search(r'(.{2,10}?)包括(.+)', text)
-        if include_match:
-            concept = include_match.group(1)
+        # 模式2: "X是指Y" → "什么是X？"
+        m = re.match(r'^(.+?)是指(.+)', text)
+        if m and 2 <= len(m.group(1)) <= 20:
             cards.append(AnkiCard(
-                front=f"{concept}包括哪些？",
+                front=f"什么是{m.group(1)}？",
                 back=text,
-                card_type="qa",
-                tags=metadata.get("tags", []),
-                source=metadata.get("source", "")
+                card_type="qa", tags=tags, source=source
             ))
+            return cards
         
-        # 模式2.5: "X分为..." → "X分为哪些？"
-        divide_match = re.search(r'(.{2,10}?)分为(.+)', text)
-        if divide_match:
-            concept = divide_match.group(1)
+        # 模式3: "X包括Y" → "X包括哪些？"
+        m = re.match(r'^(.+?)包括(.+)', text)
+        if m and 2 <= len(m.group(1)) <= 20:
             cards.append(AnkiCard(
-                front=f"{concept}分为哪些？",
+                front=f"{m.group(1)}包括哪些？",
                 back=text,
-                card_type="qa",
-                tags=metadata.get("tags", []),
-                source=metadata.get("source", "")
+                card_type="qa", tags=tags, source=source
             ))
+            return cards
         
-        # 模式3: "X的特点是..." → "X有什么特点？"
-        feature_match = re.search(r'(.{2,10}?)的特点?(?:是|为)(.+)', text)
-        if feature_match:
-            concept = feature_match.group(1)
+        # 模式4: "X分为Y" → "X分为哪些？"
+        m = re.match(r'^(.+?)分为(.+)', text)
+        if m and 2 <= len(m.group(1)) <= 20:
             cards.append(AnkiCard(
-                front=f"{concept}有什么特点？",
+                front=f"{m.group(1)}分为哪几类？",
                 back=text,
-                card_type="qa",
-                tags=metadata.get("tags", []),
-                source=metadata.get("source", "")
+                card_type="qa", tags=tags, source=source
             ))
+            return cards
         
-        # 默认: 将关键信息挖空
-        if not cards and len(text) > 10 and len(text) < 100:
-            # 提取关键术语
-            key_term = self._extract_key_term(text)
-            if key_term:
+        # 模式5: "X的特点是Y" → "X有什么特点？"
+        m = re.search(r'^(.+?)的特点是(.+)', text)
+        if m and 2 <= len(m.group(1)) <= 20:
+            cards.append(AnkiCard(
+                front=f"{m.group(1)}有什么特点？",
+                back=text,
+                card_type="qa", tags=tags, source=source
+            ))
+            return cards
+        
+        # 模式6: "X的作用是Y" → "X的作用是什么？"
+        m = re.search(r'^(.+?)的作用是(.+)', text)
+        if m and 2 <= len(m.group(1)) <= 20:
+            cards.append(AnkiCard(
+                front=f"{m.group(1)}的作用是什么？",
+                back=text,
+                card_type="qa", tags=tags, source=source
+            ))
+            return cards
+        
+        # 模式7: "X的优点是Y" / "X的缺点是Y"
+        m = re.search(r'^(.+?)的(优点|缺点)是(.+)', text)
+        if m and 2 <= len(m.group(1)) <= 20:
+            cards.append(AnkiCard(
+                front=f"{m.group(1)}的{m.group(2)}是什么？",
+                back=text,
+                card_type="qa", tags=tags, source=source
+            ))
+            return cards
+        
+        # 模式8: "X是Y" (通用定义) → "什么是X？"
+        m = re.match(r'^(.+?)是(.{5,})', text)
+        if m and 2 <= len(m.group(1)) <= 20:
+            subject = m.group(1)
+            # 排除太泛的主语
+            if not re.match(r'^(这|那|它|其|本)', subject):
                 cards.append(AnkiCard(
-                    front=f"{key_term}是什么？",
+                    front=f"什么是{subject}？",
                     back=text,
-                    card_type="qa",
-                    tags=metadata.get("tags", []),
-                    source=metadata.get("source", "")
+                    card_type="qa", tags=tags, source=source
                 ))
+                return cards
         
         return cards
     
-    def _extract_concept(self, text: str) -> str:
-        """提取概念名称"""
-        # "XXX是指..." → XXX (只匹配中文字符/字母数字，不包括"是")
-        match = re.search(r'^([\u4e00-\u9fa5\w]{2,10})(是指|是指为)', text)
-        if match:
-            return match.group(1)
-        
-        # "XXX是..." → XXX
-        match = re.search(r'^([\u4e00-\u9fa5\w]{2,10})是([\u4e00-\u9fa5\w]|.{2,})', text)
-        if match:
-            # 确保后面不是"分为"等动词
-            following = match.group(2)
-            if following not in ['分为', '包括', '是指']:
-                return match.group(1)
-        
-        # "定义：XXX..." → XXX
-        match = re.search(r'定义：([\u4e00-\u9fa5\w]{2,10})', text)
-        if match:
-            return match.group(1)
-        
-        # "XXX分为..." → XXX
-        match = re.search(r'^([\u4e00-\u9fa5\w]{2,10})分为', text)
-        if match:
-            return match.group(1)
-        
-        # "XXX包括..." → XXX
-        match = re.search(r'^([\u4e00-\u9fa5\w]{2,10})包括', text)
-        if match:
-            return match.group(1)
-        
-        return ""
-    
-    def _extract_key_term(self, text: str) -> str:
-        """提取关键术语"""
-        # 优先提取：主语 + 是
-        match = re.search(r'^([\u4e00-\u9fa5\w]{2,10})是', text)
-        if match:
-            return match.group(1)
-        
-        # 次选：提取中文短语（在常见动词/介词前停止）
-        # 在 是、为、分、包、的、了、于、等 前停止
-        match = re.search(r'^([\u4e00-\u9fa5]{2,8})(?=[是分为包的了于等以及]|[，。；：！？、的是的了]|[a-zA-Z0-9]|$)', text)
-        if match:
-            return match.group(1)
-        
-        # 兜底：提取中文词组（避免跨词）
-        # 使用jieba分词或更简单的方法：在非中文字符前停止
-        words = re.findall(r'[\u4e00-\u9fa5]{2,6}(?![\u4e00-\u9fa5])', text[:30])
-        if words:
-            return words[0]
+    def _extract_subject(self, text: str) -> str:
+        """从句子中提取主语概念"""
+        m = re.match(r'^(.+?)(?:是|为|指|，)', text)
+        if m and 2 <= len(m.group(1)) <= 20:
+            return m.group(1)
         return ""
 
 
@@ -160,59 +141,66 @@ class ClozeCardGenerator(CardGenerator):
     def generate(self, text: str, context: str, metadata: Dict) -> List[AnkiCard]:
         """从知识点生成填空卡"""
         cards = []
+        tags = metadata.get("tags", [])
+        source = metadata.get("source", "")
         
         # Anki填空格式: {{c1::答案}}
         cloze_text = self._create_cloze(text)
-        if cloze_text != text:
+        if cloze_text and cloze_text != text:
             cards.append(AnkiCard(
                 front=cloze_text,
                 back=text,
                 card_type="cloze",
-                tags=metadata.get("tags", []),
-                source=metadata.get("source", "")
+                tags=tags,
+                source=source
             ))
         
         return cards
     
     def _create_cloze(self, text: str) -> str:
-        """创建填空题"""
-        # 模式1: "XXX是YYY" → "{{c1::XXX}}是YYY"
-        match = re.match(r'^([\u4e00-\u9fa5\w]{2,10})(是|为|指)(.+)', text)
-        if match:
-            term = match.group(1)
-            rest = text[len(term):]
-            return f"{{{{c1::{term}}}}}{rest}"
+        """创建填空题 - 挖掉关键概念"""
         
-        # 模式2: "XXX分为YYY" → "{{c1::XXX}}分为YYY"
-        match = re.match(r'^([\u4e00-\u9fa5\w]{2,10})分为(.+)', text)
-        if match:
-            term = match.group(1)
-            rest = text[len(term):]
-            return f"{{{{c1::{term}}}}}{rest}"
+        # 模式0: "定义：X是Y" → "定义：X是{{c1::Y}}"
+        m = re.match(r'^(定义[：:]\s*.+?(?:是指|是))(.{5,})', text)
+        if m:
+            return f"{m.group(1)}{{{{c1::{m.group(2)}}}}}"
         
-        # 模式3: "XXX包括YYY" → "{{c1::XXX}}包括YYY"
-        match = re.match(r'^([\u4e00-\u9fa5\w]{2,10})包括(.+)', text)
-        if match:
-            term = match.group(1)
-            rest = text[len(term):]
-            return f"{{{{c1::{term}}}}}{rest}"
+        # 模式1: "X是指Y" → "X是指{{c1::Y}}"
+        m = re.match(r'^(.+?是指)(.+)', text)
+        if m and len(m.group(2)) > 3:
+            return f"{m.group(1)}{{{{c1::{m.group(2)}}}}}"
         
-        # 模式4: "包括A, B, C" → "包括{{c1::A, B, C}}"
-        include_match = re.search(r'包括(.+)', text)
-        if include_match:
-            items = include_match.group(1)
-            if len(items) > 3 and len(items) < 50:
-                prefix = text[:include_match.start()]
-                return f"{prefix}包括{{{{c1::{items}}}}}"
+        # 模式2: "X包括Y" → "X包括{{c1::Y}}"
+        m = re.match(r'^(.+?包括)(.+)', text)
+        if m and len(m.group(2)) > 3:
+            return f"{m.group(1)}{{{{c1::{m.group(2)}}}}}"
         
-        # 默认: 挖第一个词
-        words = re.findall(r'([\u4e00-\u9fa5]{2,6})', text)
-        if len(words) >= 2:
-            first_word = words[0]
-            rest = text[len(first_word):]
-            return f"{{{{c1::{first_word}}}}}{rest}"
+        # 模式3: "X分为Y" → "X分为{{c1::Y}}"
+        m = re.match(r'^(.+?分为)(.+)', text)
+        if m and len(m.group(2)) > 3:
+            return f"{m.group(1)}{{{{c1::{m.group(2)}}}}}"
         
-        return text
+        # 模式4: "X的特点是Y" → "X的特点是{{c1::Y}}"
+        m = re.match(r'^(.+?的特点是)(.+)', text)
+        if m and len(m.group(2)) > 3:
+            return f"{m.group(1)}{{{{c1::{m.group(2)}}}}}"
+        
+        # 模式5: "X的作用是Y" → "X的作用是{{c1::Y}}"
+        m = re.match(r'^(.+?的作用是)(.+)', text)
+        if m and len(m.group(2)) > 3:
+            return f"{m.group(1)}{{{{c1::{m.group(2)}}}}}"
+        
+        # 模式6: "定义：X是Y" → "定义：{{c1::X是Y}}"
+        m = re.match(r'^(定义[：:]\s*)(.+)', text)
+        if m:
+            return f"{m.group(1)}{{{{c1::{m.group(2)}}}}}"
+        
+        # 模式7: "X是Y"（通用） → "{{c1::X}}是Y"
+        m = re.match(r'^(.+?)是(.{5,})', text)
+        if m and 2 <= len(m.group(1)) <= 20:
+            return f"{{{{c1::{m.group(1)}}}}}是{m.group(2)}"
+        
+        return ""
 
 
 class ConceptCardGenerator(CardGenerator):
@@ -221,36 +209,51 @@ class ConceptCardGenerator(CardGenerator):
     def generate(self, text: str, context: str, metadata: Dict) -> List[AnkiCard]:
         """从知识点生成概念卡"""
         cards = []
+        tags = metadata.get("tags", [])
+        source = metadata.get("source", "")
         
         # 提取概念和解释
-        concept = self._extract_concept(text)
-        explanation = self._extract_explanation(text)
+        concept, explanation = self._split_concept(text)
         
-        if concept and explanation:
+        if concept and explanation and len(explanation) > 5:
             cards.append(AnkiCard(
-                front=concept,
+                front=f"📖 {concept}",
                 back=explanation,
                 card_type="concept",
-                tags=metadata.get("tags", []),
-                source=metadata.get("source", "")
+                tags=tags,
+                source=source
             ))
         
         return cards
     
-    def _extract_concept(self, text: str) -> str:
-        """提取概念"""
-        match = re.search(r'^(.{2,10}?)(?:是|为|指|：)', text)
-        if match:
-            return match.group(1)
-        return ""
-    
-    def _extract_explanation(self, text: str) -> str:
-        """提取解释"""
-        # 去掉概念部分，保留解释
-        match = re.match(r'^.{2,10?}(?:是|为|指|：)(.+)', text)
-        if match:
-            return match.group(1).strip()
-        return text
+    def _split_concept(self, text: str):
+        """将文本拆分为概念+解释"""
+        # "定义：X是Y" → (X, 完整文本)
+        m = re.match(r'定义[：:]\s*(.+?)(?:是指|是)(.+)', text)
+        if m and 2 <= len(m.group(1)) <= 20:
+            return m.group(1), text
+        
+        # "X是指Y" → (X, Y)
+        m = re.match(r'^(.+?)是指(.+)', text)
+        if m and 2 <= len(m.group(1)) <= 20:
+            return m.group(1), m.group(2)
+        
+        # "X是Y" → (X, Y)
+        m = re.match(r'^(.+?)是(.{5,})', text)
+        if m and 2 <= len(m.group(1)) <= 20:
+            return m.group(1), text
+        
+        # "X包括Y" → (X, Y)
+        m = re.match(r'^(.+?)包括(.+)', text)
+        if m and 2 <= len(m.group(1)) <= 20:
+            return m.group(1), text
+        
+        # "X分为Y" → (X, Y)
+        m = re.match(r'^(.+?)分为(.+)', text)
+        if m and 2 <= len(m.group(1)) <= 20:
+            return m.group(1), text
+        
+        return "", ""
 
 
 class AnkiCardGenerator:

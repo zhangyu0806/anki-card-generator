@@ -112,37 +112,52 @@ class PDFParser:
                     self.sections.append(current_section)
     
     def _extract_key_points(self, pdf) -> None:
-        """提取知识点（基于规则）"""
+        """提取知识点（基于完整句子）"""
         self.key_points = []
-        
-        # 关键词模式
-        patterns = [
-            r'定义：(.+?)(?:\n|$)',
-            r'所谓(.{5,30}?)是指',
-            r'(.{5,30}?)的特点是',
-            r'(.{5,30}?)包括',
-            r'重要：(.+?)(?:\n|$)',
-            r'注意：(.+?)(?:\n|$)',
-            r'(.{5,30}?)分为',
-            r'(.{5,30}?)是指',
-        ]
-        
-        combined_pattern = re.compile('|'.join(patterns))
         
         for i, page in enumerate(pdf.pages, 1):
             text = page.extract_text() or ""
             
-            # 查找匹配的知识点
-            matches = combined_pattern.finditer(text)
-            for match in matches:
-                point_text = match.group(0).strip()
-                if len(point_text) > 5 and len(point_text) < 100:
-                    # 找到所属章节
-                    section_name = self._find_section_for_page(i)
-                    
+            # 先按句号/换行分割成完整句子
+            sentences = re.split(r'[。\n]', text)
+            section_name = self._find_section_for_page(i)
+            
+            for sent in sentences:
+                sent = sent.strip()
+                if len(sent) < 8 or len(sent) > 300:
+                    continue
+                # 过滤纯数字、页码等噪音
+                if re.match(r'^[\d\s\-—·•]+$', sent):
+                    continue
+                # 过滤目录行（短且无动词）
+                if len(sent) < 20 and not any(kw in sent for kw in ['是', '为', '指', '包括', '分为']):
+                    continue
+                
+                # 匹配知识点模式（在完整句子中匹配）
+                is_keypoint = False
+                for pattern in [
+                    r'定义[：:]',
+                    r'是指',
+                    r'的特点是',
+                    r'包括',
+                    r'分为',
+                    r'的作用是',
+                    r'的优点是',
+                    r'的缺点是',
+                    r'重要[：:]',
+                    r'注意[：:]',
+                    r'所谓.+?是',
+                    r'称为',
+                    r'叫做',
+                ]:
+                    if re.search(pattern, sent):
+                        is_keypoint = True
+                        break
+                
+                if is_keypoint:
                     self.key_points.append(KeyPoint(
-                        text=point_text,
-                        context=text[max(0, match.start()-50):match.end()+50],
+                        text=sent,
+                        context=sent,
                         page=i,
                         section=section_name
                     ))
