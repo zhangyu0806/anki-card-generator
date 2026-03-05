@@ -53,69 +53,75 @@ class QACardGenerator(CardGenerator):
                 return cards
         
         # 模式2: "X是指Y" → "什么是X？"
-        m = re.match(r'^(.+?)是指(.+)', text)
-        if m and 2 <= len(m.group(1)) <= 20:
+        m = re.match(r'^([\u4e00-\u9fa5\w]{2,20})是指(.+)', text)
+        if m:
+            concept = m.group(1).strip()
             cards.append(AnkiCard(
-                front=f"什么是{m.group(1)}？",
+                front=f"什么是{concept}？",
                 back=text,
                 card_type="qa", tags=tags, source=source
             ))
             return cards
         
         # 模式3: "X包括Y" → "X包括哪些？"
-        m = re.match(r'^(.+?)包括(.+)', text)
-        if m and 2 <= len(m.group(1)) <= 20:
+        m = re.match(r'^([\u4e00-\u9fa5\w]{2,20})包括(.+)', text)
+        if m:
+            concept = m.group(1).strip()
             cards.append(AnkiCard(
-                front=f"{m.group(1)}包括哪些？",
+                front=f"{concept}包括哪些？",
                 back=text,
                 card_type="qa", tags=tags, source=source
             ))
             return cards
         
         # 模式4: "X分为Y" → "X分为哪些？"
-        m = re.match(r'^(.+?)分为(.+)', text)
-        if m and 2 <= len(m.group(1)) <= 20:
+        m = re.match(r'^([\u4e00-\u9fa5\w]{2,20})分为(.+)', text)
+        if m:
+            concept = m.group(1).strip()
             cards.append(AnkiCard(
-                front=f"{m.group(1)}分为哪几类？",
+                front=f"{concept}分为哪几类？",
                 back=text,
                 card_type="qa", tags=tags, source=source
             ))
             return cards
         
         # 模式5: "X的特点是Y" → "X有什么特点？"
-        m = re.search(r'^(.+?)的特点是(.+)', text)
-        if m and 2 <= len(m.group(1)) <= 20:
+        m = re.search(r'^([\u4e00-\u9fa5\w]{2,20})的特点是(.+)', text)
+        if m:
+            concept = m.group(1).strip()
             cards.append(AnkiCard(
-                front=f"{m.group(1)}有什么特点？",
+                front=f"{concept}有什么特点？",
                 back=text,
                 card_type="qa", tags=tags, source=source
             ))
             return cards
         
         # 模式6: "X的作用是Y" → "X的作用是什么？"
-        m = re.search(r'^(.+?)的作用是(.+)', text)
-        if m and 2 <= len(m.group(1)) <= 20:
+        m = re.search(r'^([\u4e00-\u9fa5\w]{2,20})的作用是(.+)', text)
+        if m:
+            concept = m.group(1).strip()
             cards.append(AnkiCard(
-                front=f"{m.group(1)}的作用是什么？",
+                front=f"{concept}的作用是什么？",
                 back=text,
                 card_type="qa", tags=tags, source=source
             ))
             return cards
         
         # 模式7: "X的优点是Y" / "X的缺点是Y"
-        m = re.search(r'^(.+?)的(优点|缺点)是(.+)', text)
-        if m and 2 <= len(m.group(1)) <= 20:
+        m = re.search(r'^([\u4e00-\u9fa5\w]{2,20})的(优点|缺点)是(.+)', text)
+        if m:
+            concept = m.group(1).strip()
             cards.append(AnkiCard(
-                front=f"{m.group(1)}的{m.group(2)}是什么？",
+                front=f"{concept}的{m.group(2)}是什么？",
                 back=text,
                 card_type="qa", tags=tags, source=source
             ))
             return cards
         
         # 模式8: "X是Y" (通用定义) → "什么是X？"
-        m = re.match(r'^(.+?)是(.{5,})', text)
-        if m and 2 <= len(m.group(1)) <= 20:
-            subject = m.group(1)
+        m = re.match(r'^([\u4e00-\u9fa5\w]{2,20})是(.{5,})', text)
+        if m:
+            subject = m.group(1).strip()
             # 排除太泛的主语
             if not re.match(r'^(这|那|它|其|本)', subject):
                 cards.append(AnkiCard(
@@ -171,14 +177,14 @@ class ClozeCardGenerator(CardGenerator):
             return f"{m.group(1)}{{{{c1::{m.group(2)}}}}}"
         
         # 模式2: "X包括Y" → "X包括{{c1::Y}}"
-        m = re.match(r'^(.+?包括)(.+)', text)
-        if m and len(m.group(2)) > 3:
-            return f"{m.group(1)}{{{{c1::{m.group(2)}}}}}"
+        m = re.match(r'^([\u4e00-\u9fa5\w]{2,20})(包括)(.+)', text)
+        if m and len(m.group(3)) > 3:
+            return f"{m.group(1)}{m.group(2)}{{{{c1::{m.group(3)}}}}}"
         
         # 模式3: "X分为Y" → "X分为{{c1::Y}}"
-        m = re.match(r'^(.+?分为)(.+)', text)
-        if m and len(m.group(2)) > 3:
-            return f"{m.group(1)}{{{{c1::{m.group(2)}}}}}"
+        m = re.match(r'^([\u4e00-\u9fa5\w]{2,20})(分为)(.+)', text)
+        if m and len(m.group(3)) > 3:
+            return f"{m.group(1)}{m.group(2)}{{{{c1::{m.group(3)}}}}}"
         
         # 模式4: "X的特点是Y" → "X的特点是{{c1::Y}}"
         m = re.match(r'^(.+?的特点是)(.+)', text)
@@ -196,8 +202,8 @@ class ClozeCardGenerator(CardGenerator):
             return f"{m.group(1)}{{{{c1::{m.group(2)}}}}}"
         
         # 模式7: "X是Y"（通用） → "{{c1::X}}是Y"
-        m = re.match(r'^(.+?)是(.{5,})', text)
-        if m and 2 <= len(m.group(1)) <= 20:
+        m = re.match(r'^([\u4e00-\u9fa5\w]{2,20})是(.{5,})', text)
+        if m:
             return f"{{{{c1::{m.group(1)}}}}}是{m.group(2)}"
         
         return ""
@@ -229,29 +235,29 @@ class ConceptCardGenerator(CardGenerator):
     def _split_concept(self, text: str):
         """将文本拆分为概念+解释"""
         # "定义：X是Y" → (X, 完整文本)
-        m = re.match(r'定义[：:]\s*(.+?)(?:是指|是)(.+)', text)
-        if m and 2 <= len(m.group(1)) <= 20:
-            return m.group(1), text
+        m = re.match(r'定义[：:]\s*([\u4e00-\u9fa5\w]{2,20})(?:是指|是)(.+)', text)
+        if m:
+            return m.group(1).strip(), text
         
         # "X是指Y" → (X, Y)
-        m = re.match(r'^(.+?)是指(.+)', text)
-        if m and 2 <= len(m.group(1)) <= 20:
-            return m.group(1), m.group(2)
+        m = re.match(r'^([\u4e00-\u9fa5\w]{2,20})是指(.+)', text)
+        if m:
+            return m.group(1).strip(), m.group(2).strip()
         
         # "X是Y" → (X, Y)
-        m = re.match(r'^(.+?)是(.{5,})', text)
-        if m and 2 <= len(m.group(1)) <= 20:
-            return m.group(1), text
+        m = re.match(r'^([\u4e00-\u9fa5\w]{2,20})是(.{5,})', text)
+        if m:
+            return m.group(1).strip(), text
         
         # "X包括Y" → (X, Y)
-        m = re.match(r'^(.+?)包括(.+)', text)
-        if m and 2 <= len(m.group(1)) <= 20:
-            return m.group(1), text
+        m = re.match(r'^([\u4e00-\u9fa5\w]{2,20})包括(.+)', text)
+        if m:
+            return m.group(1).strip(), text
         
         # "X分为Y" → (X, Y)
-        m = re.match(r'^(.+?)分为(.+)', text)
-        if m and 2 <= len(m.group(1)) <= 20:
-            return m.group(1), text
+        m = re.match(r'^([\u4e00-\u9fa5\w]{2,20})分为(.+)', text)
+        if m:
+            return m.group(1).strip(), text
         
         return "", ""
 
